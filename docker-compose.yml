@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: the-saviour
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongodb:27017/the-saviour
+      - JWT_SECRET=change_this_to_a_long_random_secret_in_production
+      - AES_SECRET=change_this_32_char_aes_key_prod!
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+
+  ai_model:
+    build:
+      context: ./ai_model
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "5001:5001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:

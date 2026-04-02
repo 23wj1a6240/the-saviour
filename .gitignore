@@ -1,0 +1,14 @@
+node_modules/
+.env
+*.env
+dist/
+build/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+models/*.pkl
+ai_model/models/
+*.log
+.npm
+.cache
