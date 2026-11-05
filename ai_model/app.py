@@ -13,7 +13,10 @@ import os
 import sys
 
 app = Flask(__name__)
-CORS(app)
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024
+allowed_origins = [origin.strip() for origin in os.environ.get('AI_ALLOWED_ORIGINS', '').split(',') if origin.strip()]
+# No browser origins are allowed unless explicitly configured. CORS is not API authentication.
+CORS(app, resources={r"/*": {"origins": allowed_origins}})
 
 # Load model artifacts
 MODEL   = None
