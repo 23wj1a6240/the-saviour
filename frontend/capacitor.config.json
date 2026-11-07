@@ -1,0 +1,7 @@
+{
+  "appId": "com.thesaviour.health",
+  "appName": "The Saviour",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "android": {}
+}
