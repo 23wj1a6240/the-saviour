@@ -1,7 +1,8 @@
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -14,15 +15,32 @@ const reportRoutes = require('./routes/reports');
 const ashaRoutes = require('./routes/asha');
 
 const app = express();
+const isProduction = process.env.NODE_ENV === 'production';
+const frontendUrl = process.env.FRONTEND_URL;
+
+if (isProduction) {
+  for (const name of ['JWT_SECRET', 'AES_SECRET', 'MONGODB_URI', 'FRONTEND_URL']) {
+    if (!process.env[name]) throw new Error(`Missing required production environment variable: ${name}`);
+  }
+  if (process.env.JWT_SECRET.length < 32 || process.env.AES_SECRET.length < 32) {
+    throw new Error('JWT_SECRET and AES_SECRET must each be at least 32 characters');
+  }
+}
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    const allowed = new Set([
+      ...(frontendUrl ? [frontendUrl] : []),
+      ...(!isProduction ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
+    ]);
+    if (!origin || allowed.has(origin)) return callback(null, true);
+    return callback(new Error('Origin not allowed by CORS'));
+  },
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/health', healthRoutes);
@@ -37,24 +55,26 @@ app.get('/api/health-check', (req, res) => {
   res.json({ status: 'ok', message: 'The Saviour API is running' });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Request failed:', err.message);
+  if (res.headersSent) return next(err);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/the-saviour';
+const MONGODB_URI = process.env.MONGODB_URI || (!isProduction ? 'mongodb://localhost:27017/the-saviour' : null);
 
-mongoose.connect(MONGODB_URI)
-  .then(() => {
-    console.log('✅ MongoDB connected');
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-  })
-  .catch(err => {
-    console.error('MongoDB connection error:', err);
-    // Start server even without DB for demo purposes
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT} (No DB)`));
-  });
+if (require.main === module) {
+  if (!MONGODB_URI) throw new Error('MONGODB_URI must be configured');
+  mongoose.connect(MONGODB_URI)
+    .then(() => {
+      console.log('MongoDB connected');
+      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    })
+    .catch(err => {
+      console.error('MongoDB connection failed; refusing to start:', err.message);
+      process.exit(1);
+    });
+}
 
 module.exports = app;
